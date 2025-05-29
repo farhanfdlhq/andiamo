@@ -1,57 +1,156 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import BatchForm from '../../components/admin/BatchForm';
-import { BatchOrder } from '../../types';
-import { getBatchById, addBatch, updateBatch } from '../../constants'; // Using direct functions for demo
-import LoadingSpinner from '../../components/LoadingSpinner';
+// Andiamo/pages/admin/AdminBatchFormPage.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import BatchForm from "../../components/admin/BatchForm";
+import { Batch } from "../../types";
+import LoadingSpinner from "../../components/LoadingSpinner";
+import ToastNotification from "../../components/ToastNotification";
 
-const AdminBatchFormPage: React.FC = () => {
-  const { batchId } = useParams<{ batchId?: string }>();
+interface AdminBatchFormPageProps {
+  mode: "create" | "edit";
+}
+
+const AdminBatchFormPage: React.FC<AdminBatchFormPageProps> = ({ mode }) => {
   const navigate = useNavigate();
-  const [initialBatch, setInitialBatch] = useState<BatchOrder | null | undefined>(undefined); // undefined for loading, null if not found/new
-  const isEditMode = Boolean(batchId);
+  const { id } = useParams<{ id: string }>();
+  const [initialData, setInitialData] = useState<Batch | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [toastMessage, setToastMessage] = useState<string>("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info">(
+    "info"
+  );
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
-    if (isEditMode && batchId) {
-      const foundBatch = getBatchById(batchId);
-      setInitialBatch(foundBatch); // Will be BatchOrder or undefined if not found
-    } else {
-      setInitialBatch(null); // For new batch
+    if (mode === "edit" && id && apiBaseUrl) {
+      setIsLoading(true);
+      setPageError(null);
+      const fetchBatchForEdit = async () => {
+        try {
+          const response = await fetch(`${apiBaseUrl}/batches/${id}`);
+          if (!response.ok) {
+            let msg = `Gagal mengambil data batch (ID: ${id}). Status: ${response.status}`;
+            try {
+              const errData = await response.json();
+              msg = errData.message || msg;
+            } catch (e) {}
+            throw new Error(msg);
+          }
+          const data: Batch = await response.json();
+          setInitialData(data);
+        } catch (err) {
+          setPageError(
+            err instanceof Error ? err.message : "Terjadi kesalahan."
+          );
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchBatchForEdit();
+    } else if (mode === "create") {
+      setInitialData(null);
     }
-  }, [batchId, isEditMode]);
+  }, [mode, id, apiBaseUrl]);
 
-  const handleSubmit = (batchData: Omit<BatchOrder, 'id'> | BatchOrder) => {
-    if (isEditMode && batchId) {
-      updateBatch(batchId, batchData as Partial<Omit<BatchOrder, 'id'>>);
-    } else {
-      addBatch(batchData as Omit<BatchOrder, 'id'>);
+  const handleFormSubmit = async (formData: FormData) => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setToastMessage("");
+
+    let url = `${apiBaseUrl}/batches`;
+    if (mode === "edit" && id) {
+      url = `${apiBaseUrl}/batches/${id}`;
+      formData.append("_method", "PUT");
     }
-    navigate('/admin/batches');
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        body: formData,
+        headers: { Accept: "application/json" },
+      });
+      const responseData = await response.json();
+      if (!response.ok) {
+        let errorMessage = `Gagal ${
+          mode === "create" ? "menyimpan" : "memperbarui"
+        } batch.`;
+        if (responseData && responseData.message)
+          errorMessage = responseData.message;
+        if (responseData && responseData.errors) {
+          const validationErrors = Object.values(responseData.errors)
+            .flat()
+            .join(" \n");
+          errorMessage = `Data tidak valid:\n${validationErrors}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      setToastMessage(
+        `Batch berhasil ${mode === "create" ? "dibuat" : "diperbarui"}!`
+      );
+      setToastType("success");
+      setTimeout(() => {
+        // Kirim state saat navigasi untuk memicu refresh
+        navigate("/admin/batches", { state: { refresh: true } });
+      }, 1500);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat mengirimkan data.";
+      setSubmitError(errorMessage);
+      setToastMessage(errorMessage);
+      setToastType("error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if (isEditMode && initialBatch === undefined) {
-    return <LoadingSpinner />; // Show loader while fetching batch for edit
+  if (isLoading && mode === "edit") {
+    return (
+      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <LoadingSpinner />
+      </div>
+    );
   }
-  
-  if (isEditMode && !initialBatch) {
-     return (
-        <div className="text-center py-10">
-            <h2 className="font-poppins text-2xl font-bold text-red-600 mb-4">Batch Tidak Ditemukan</h2>
-            <p className="font-inter text-gray-700">Batch dengan ID ini tidak dapat ditemukan.</p>
-        </div>
-     )
+  if (pageError && mode === "edit") {
+    return (
+      <div className="container mx-auto p-6 text-center text-red-600 bg-red-50 rounded-lg shadow">
+        <p>{pageError}</p>
+      </div>
+    );
   }
-
+  if (mode === "edit" && !initialData && !isLoading) {
+    return (
+      <div className="container mx-auto p-6 text-center text-orange-600 bg-orange-50 rounded-lg shadow">
+        <p>Batch tidak ditemukan.</p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h1 className="font-poppins text-3xl font-bold text-black mb-8">
-        {isEditMode ? 'Edit Batch Order' : 'Buat Batch Order Baru'}
+    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-10 relative">
+      {toastMessage && (
+        <ToastNotification
+          message={toastMessage}
+          type={toastType}
+          onClose={() => setToastMessage("")}
+        />
+      )}
+      <h1 className="font-poppins text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8 text-center">
+        {mode === "create" ? "Tambah Batch Order Baru" : "Edit Batch Order"}
       </h1>
       <BatchForm
-        initialBatch={initialBatch} // Will be BatchOrder or null
-        onSubmit={handleSubmit}
-        isEditMode={isEditMode}
+        initialData={initialData}
+        onSubmit={handleFormSubmit}
+        isSubmitting={isSubmitting}
+        mode={mode}
+        submitError={submitError}
       />
     </div>
   );

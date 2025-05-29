@@ -1,27 +1,57 @@
-import React from 'react';
-import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import HomePage from './pages/HomePage';
-import BatchDetailPage from './pages/BatchDetailPage';
+import React from "react";
+import {
+  HashRouter,
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+  useLocation,
+} from "react-router-dom";
+import Header from "./components/Header";
+import Footer from "./components/Footer";
+import HomePage from "./pages/HomePage";
+import BatchDetailPage from "./pages/BatchDetailPage";
 
 // Admin imports
-import AdminLoginPage from './pages/admin/AdminLoginPage';
-import AdminLayout from './components/admin/AdminLayout';
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import AdminBatchListPage from './pages/admin/AdminBatchListPage';
-import AdminBatchFormPage from './pages/admin/AdminBatchFormPage';
-import AdminSettingsPage from './pages/admin/AdminSettingsPage';
-import { useAuth } from './hooks/useAuth';
+import AdminLoginPage from "./pages/admin/AdminLoginPage";
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
+import AdminBatchListPage from "./pages/admin/AdminBatchListPage";
+import AdminBatchFormPage from "./pages/admin/AdminBatchFormPage";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
+import AdminProfilePage from "./pages/admin/AdminProfilePage";
+import { useAuth } from "./hooks/useAuth";
 
 const ProtectedAdminRoute: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth(); // Ambil juga isLoading
   const location = useLocation();
 
+  if (isLoading) {
+    // Jika AuthContext masih loading status otentikasi awal
+    console.log("ProtectedAdminRoute: Auth context is loading..."); // DEBUG
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <LoadingSpinner />{" "}
+        {/* Pastikan LoadingSpinner adalah komponen yang valid */}
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
+    console.log(
+      "ProtectedAdminRoute: Not authenticated, redirecting to login."
+    ); // DEBUG
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
-  return <AdminLayout><Outlet /></AdminLayout>;
+
+  console.log("ProtectedAdminRoute: Authenticated, rendering admin layout."); // DEBUG
+  return (
+    <AdminLayout>
+      {" "}
+      {/* Pastikan AdminLayout adalah komponen yang valid */}
+      <Outlet />
+    </AdminLayout>
+  );
 };
 
 const PublicLayout: React.FC = () => {
@@ -36,7 +66,6 @@ const PublicLayout: React.FC = () => {
   );
 };
 
-
 const App: React.FC = () => {
   return (
     <HashRouter>
@@ -44,7 +73,8 @@ const App: React.FC = () => {
         {/* Public Routes */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/batch/:batchId" element={<BatchDetailPage />} />
+          {/* Ganti :batchId menjadi :id agar konsisten dengan useParams di AdminBatchFormPage */}
+          <Route path="/batch/:id" element={<BatchDetailPage />} />
         </Route>
 
         {/* Admin Routes */}
@@ -52,13 +82,24 @@ const App: React.FC = () => {
         <Route element={<ProtectedAdminRoute />}>
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           <Route path="/admin/batches" element={<AdminBatchListPage />} />
-          <Route path="/admin/batches/new" element={<AdminBatchFormPage />} />
-          <Route path="/admin/batches/edit/:batchId" element={<AdminBatchFormPage />} />
+          <Route
+            path="/admin/batches/new"
+            element={<AdminBatchFormPage mode="create" />}
+          />
+          <Route
+            path="/admin/batches/edit/:id"
+            element={<AdminBatchFormPage mode="edit" />}
+          />
           <Route path="/admin/settings" element={<AdminSettingsPage />} />
-           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin/profile" element={<AdminProfilePage />} />{" "}
+          {/* RUTE BARU */}
+          <Route
+            path="/admin"
+            element={<Navigate to="/admin/dashboard" replace />}
+          />
         </Route>
-        
-        {/* Fallback for any other undefined public routes */}
+
+        {/* Fallback untuk path yang tidak terdefinisi */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>

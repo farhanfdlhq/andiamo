@@ -1,80 +1,105 @@
-
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { BatchOrder } from '../types';
-import { BUTTON_COLOR, BUTTON_TEXT_COLOR, PRIMARY_COLOR, REGION_LABELS } from '../constants';
-import WhatsAppIcon from './icons/WhatsAppIcon';
+import React from "react";
+import { Link } from "react-router-dom";
+import { Batch } from "../types";
+import InfoIcon from "./icons/InfoIcon";
+import WhatsAppIcon from "./icons/WhatsAppIcon";
+import { useAuth } from "../hooks/useAuth";
 
 interface BatchCardProps {
-  batch: BatchOrder;
+  batch: Batch;
 }
 
 const BatchCard: React.FC<BatchCardProps> = ({ batch }) => {
-  const isClosed = batch.status === 'closed';
+  const { settings } = useAuth();
+  const backendStorageUrl = import.meta.env.VITE_BACKEND_STORAGE_URL;
+  const imageUrl = batch.image_url
+    ? `${backendStorageUrl}/${batch.image_url}`
+    : "https://via.placeholder.com/400x300.png?text=No+Image+Available";
+
+  const formatPrice = (price?: number) => {
+    if (price === undefined || price === null) return "Hubungi kami";
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(price);
+  };
+
+  const whatsAppLinkToUse =
+    batch.whatsappLink ||
+    (settings?.defaultWhatsAppNumber
+      ? `https://wa.me/62${settings.defaultWhatsAppNumber}`
+      : null);
+
+  const ctaMessage =
+    settings?.defaultCTAMessage ||
+    `Halo, saya tertarik dengan batch ${batch.name}.`;
 
   return (
-    <div className={`bg-white rounded-xl shadow-lg overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl ${isClosed ? 'opacity-70' : ''}`}>
-      <div className="relative">
-        <img 
-          src={batch.images[0] || 'https://picsum.photos/800/600?grayscale'} 
-          alt={batch.title} 
-          className="w-full h-56 object-cover" 
+    <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl">
+      <Link to={`/batch/${batch.id}`} className="block">
+        <img
+          src={imageUrl}
+          alt={batch.name}
+          className="w-full h-56 object-cover"
+          onError={(e) => {
+            (e.target as HTMLImageElement).onerror = null;
+            (e.target as HTMLImageElement).src =
+              "https://via.placeholder.com/400x300.png?text=Image+Error";
+          }}
         />
-        {isClosed && (
-          <div 
-            className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center"
-          >
-            <span className="font-poppins text-white text-2xl font-bold border-2 border-white px-4 py-2 rounded">CLOSED</span>
-          </div>
-        )}
-        <div 
-            className="absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-semibold text-black shadow"
-            style={{ backgroundColor: PRIMARY_COLOR }}
-        >
-            {REGION_LABELS[batch.region]}
-        </div>
-      </div>
-
-      <div className="p-6 flex flex-col flex-grow">
-        <h3 className="font-poppins text-xl font-bold text-black mb-2 truncate" title={batch.title}>
-          {batch.title}
-        </h3>
-        <p className="font-inter text-gray-700 text-sm mb-4 flex-grow min-h-[60px]">
-          {batch.shortDescription}
+      </Link>
+      <div className="p-5 flex flex-col flex-grow">
+        <Link to={`/batch/${batch.id}`} className="block">
+          <h3 className="font-poppins text-xl font-semibold text-gray-900 mb-2 hover:text-sky-600 transition-colors">
+            {batch.name}
+          </h3>
+        </Link>
+        <p className="text-sm text-gray-500 mb-1">
+          <span className="font-medium">Region:</span> {batch.region || "N/A"}
         </p>
-        
-        {batch.departureDate && (
-            <p className="font-inter text-xs text-gray-500 mb-1">
-                Perk. Berangkat: {new Date(batch.departureDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </p>
-        )}
-        {batch.arrivalDate && (
-            <p className="font-inter text-xs text-gray-500 mb-3">
-                Perk. Tiba: {new Date(batch.arrivalDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </p>
-        )}
+        <p className="text-sm text-gray-500 mb-3">
+          <span className="font-medium">Keberangkatan:</span>
+          {batch.departure_date
+            ? new Date(batch.departure_date).toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "Segera"}
+        </p>
+        <p className="text-gray-600 text-xs mb-3 line-clamp-2">
+          {batch.shortDescription ||
+            batch.description ||
+            "Deskripsi tidak tersedia."}
+        </p>
 
-        <div className="mt-auto space-y-3">
-          <Link
-            to={`/batch/${batch.id}`}
-            className="font-inter w-full block text-center px-6 py-2.5 rounded-md text-sm font-medium transition-colors duration-300 border-2"
-            style={{ borderColor: BUTTON_COLOR, color: BUTTON_COLOR, backgroundColor: 'white' }}
-            hover-style={{ backgroundColor: BUTTON_COLOR, color: BUTTON_TEXT_COLOR }} // Note: pseudo-classes in style need JS or specific Tailwind setup
-            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = BUTTON_COLOR; e.currentTarget.style.color = BUTTON_TEXT_COLOR;}}
-            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.color = BUTTON_COLOR;}}
-          >
-            Lihat Detail
-          </Link>
-          <a
-            href={batch.whatsappLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-inter w-full flex items-center justify-center px-6 py-2.5 rounded-md text-sm font-medium transition-colors duration-300"
-            style={{ backgroundColor: BUTTON_COLOR, color: BUTTON_TEXT_COLOR }}
-          >
-            <WhatsAppIcon className="w-5 h-5 mr-2" />
-            Hubungi via WhatsApp
-          </a>
+        <div className="mt-auto">
+          <p className="font-poppins text-2xl font-bold text-sky-600 mb-4">
+            {formatPrice(batch.price)}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Link
+              to={`/batch/${batch.id}`}
+              className="flex-1 flex items-center justify-center text-center bg-slate-800 text-white px-5 py-2.5 rounded-lg hover:bg-slate-900 transition-colors text-sm font-medium"
+            >
+              <InfoIcon className="w-4 h-4 mr-2" />
+              Lihat Detail
+            </Link>
+            {whatsAppLinkToUse && (
+              <a
+                href={`${whatsAppLinkToUse}${
+                  ctaMessage ? "?text=" + encodeURIComponent(ctaMessage) : ""
+                }`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center text-center bg-green-500 text-white px-5 py-2.5 rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+              >
+                <WhatsAppIcon className="w-4 h-4 mr-2" />
+                Hubungi Jastip
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

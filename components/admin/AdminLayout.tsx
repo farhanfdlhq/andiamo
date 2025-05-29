@@ -1,6 +1,6 @@
-import React, { ReactNode } from 'react';
-import Header from '../Header'; // Re-using the public header
-import AdminSidebar from './AdminSidebar';
+// Andiamo/components/admin/AdminLayout.tsx
+import React, { ReactNode } from "react";
+import AdminSidebar from "./AdminSidebar"; // Pastikan path benar
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -8,11 +8,17 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header /> 
-      <div className="flex flex-1 overflow-hidden">
-        <AdminSidebar />
-        <main className="flex-1 p-6 sm:p-8 overflow-y-auto bg-gray-100">
+    <div className="flex h-screen bg-gray-100 font-inter">
+      {/* Sidebar */}
+      <AdminSidebar />
+
+      {/* Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar/header admin jika ada, bisa ditambahkan di sini */}
+        {/* <AdminHeader /> */}
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
           {children}
         </main>
       </div>

@@ -1,34 +1,26 @@
-export const LocalStorageKeys = {
-  ADMIN_TOKEN: 'andiamo_admin_token',
-  ADMIN_SETTINGS: 'andiamo_admin_settings',
+// Andiamo/utils/localStorage.ts
+export const setItem = <T>(key: string, value: T): void => {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error("Error saving to localStorage", error);
+  }
 };
 
-// Generic getter
 export const getItem = <T>(key: string): T | null => {
   try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
+    const item = window.localStorage.getItem(key);
+    return item ? (JSON.parse(item) as T) : null;
   } catch (error) {
-    console.error(`Error getting item ${key} from localStorage`, error);
+    console.error("Error reading from localStorage", error);
     return null;
   }
 };
 
-// Generic setter
-export const setItem = <T>(key: string, value: T): void => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error)
-{
-    console.error(`Error setting item ${key} in localStorage`, error);
-  }
-};
-
-// Generic remover
 export const removeItem = (key: string): void => {
   try {
-    localStorage.removeItem(key);
+    window.localStorage.removeItem(key);
   } catch (error) {
-    console.error(`Error removing item ${key} from localStorage`, error);
+    console.error("Error removing from localStorage", error);
   }
 };

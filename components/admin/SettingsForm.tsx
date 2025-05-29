@@ -1,85 +1,113 @@
-import React, { useState, useEffect } from 'react';
-import { AdminSettings } from '../../types';
-import { LocalStorageKeys, getItem, setItem } from '../../utils/localStorage';
-import { DEFAULT_ADMIN_SETTINGS, BUTTON_COLOR, BUTTON_TEXT_COLOR, PRIMARY_COLOR } from '../../constants';
+// Andiamo/components/admin/SettingsForm.tsx
+import React, { useState, useEffect, FormEvent } from "react";
+import { AdminSettings } from "../../types"; // Pastikan tipe ini sesuai
+import {
+  BUTTON_COLOR,
+  BUTTON_TEXT_COLOR,
+  PRIMARY_COLOR,
+} from "../../constants";
 
-const SettingsForm: React.FC = () => {
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
-  const [isLoading, setIsLoading] = useState(true);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+interface SettingsFormProps {
+  initialSettings?: Partial<AdminSettings>; // Bisa jadi tidak semua setting ada awalnya
+  onSubmit: (settingsData: AdminSettings) => Promise<void>;
+  isSubmitting: boolean;
+  submitError?: string | null;
+  submitSuccess?: string | null;
+}
+
+const SettingsForm: React.FC<SettingsFormProps> = ({
+  initialSettings,
+  onSubmit,
+  isSubmitting,
+  submitError,
+  submitSuccess,
+}) => {
+  const [defaultWhatsAppNumber, setDefaultWhatsAppNumber] = useState("");
+  const [defaultCTAMessage, setDefaultCTAMessage] = useState("");
 
   useEffect(() => {
-    const storedSettings = getItem<AdminSettings>(LocalStorageKeys.ADMIN_SETTINGS);
-    if (storedSettings) {
-      setSettings(storedSettings);
+    if (initialSettings) {
+      setDefaultWhatsAppNumber(initialSettings.defaultWhatsAppNumber || "");
+      setDefaultCTAMessage(initialSettings.defaultCTAMessage || "");
     }
-    setIsLoading(false);
-  }, []);
+  }, [initialSettings]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setSettings(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    setItem<AdminSettings>(LocalStorageKeys.ADMIN_SETTINGS, settings);
-    setSuccessMessage('Pengaturan berhasil disimpan!');
-    setTimeout(() => setSuccessMessage(null), 3000);
+    onSubmit({
+      defaultWhatsAppNumber,
+      defaultCTAMessage,
+    });
   };
 
-  if (isLoading) {
-    return <p className="font-inter text-gray-600">Memuat pengaturan...</p>;
-  }
+  const inputClass =
+    "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 sm:text-sm font-inter";
+  const labelClass = "block text-sm font-medium text-gray-700 font-inter";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-lg shadow-md">
-      {successMessage && (
-        <div className="mb-4 p-3 rounded-md bg-green-100 text-green-700 border border-green-300 font-inter">
-          {successMessage}
-        </div>
-      )}
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 bg-white p-6 sm:p-8 rounded-lg shadow-xl"
+    >
       <div>
-        <label htmlFor="defaultWhatsAppNumber" className="block text-sm font-medium text-gray-700 font-inter">
-          Nomor WhatsApp Default
+        <label htmlFor="defaultWhatsAppNumber" className={labelClass}>
+          Nomor WhatsApp Default (tanpa 62 atau 0 di depan, misal: 812xxxx)
         </label>
         <input
-          type="text"
+          type="tel"
           name="defaultWhatsAppNumber"
           id="defaultWhatsAppNumber"
-          value={settings.defaultWhatsAppNumber}
-          onChange={handleChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm font-inter"
+          value={defaultWhatsAppNumber}
+          onChange={(e) =>
+            setDefaultWhatsAppNumber(e.target.value.replace(/[^0-9]/g, ""))
+          }
+          className={inputClass}
           style={{ borderColor: PRIMARY_COLOR }}
-          placeholder="+628123456789"
+          placeholder="81234567890"
         />
-        <p className="mt-1 text-xs text-gray-500 font-inter">Nomor WhatsApp yang akan digunakan jika link WhatsApp batch tidak diisi.</p>
       </div>
 
       <div>
-        <label htmlFor="defaultCTAMessage" className="block text-sm font-medium text-gray-700 font-inter">
-          Pesan CTA WhatsApp Default
+        <label htmlFor="defaultCTAMessage" className={labelClass}>
+          Pesan Call-to-Action Default untuk WhatsApp
         </label>
         <textarea
           name="defaultCTAMessage"
           id="defaultCTAMessage"
           rows={3}
-          value={settings.defaultCTAMessage}
-          onChange={handleChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm font-inter"
+          value={defaultCTAMessage}
+          onChange={(e) => setDefaultCTAMessage(e.target.value)}
+          className={inputClass}
           style={{ borderColor: PRIMARY_COLOR }}
-          placeholder="Halo, saya tertarik dengan jastip ini..."
+          placeholder="Halo, saya tertarik dengan batch jastip..."
         />
-        <p className="mt-1 text-xs text-gray-500 font-inter">Pesan default yang akan terisi saat pengguna klik tombol WhatsApp.</p>
+        <p className="mt-1 text-xs text-gray-500 font-inter">
+          Pesan ini akan digunakan jika link WhatsApp batch tidak diisi.
+        </p>
       </div>
 
-      <div>
+      {submitError && (
+        <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm">
+          Error: {submitError}
+        </div>
+      )}
+      {submitSuccess && (
+        <div className="p-3 bg-green-100 text-green-700 rounded-md text-sm">
+          {submitSuccess}
+        </div>
+      )}
+
+      <div className="pt-4">
         <button
           type="submit"
-          className="inline-flex justify-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium transition-colors duration-300 font-inter"
-          style={{ backgroundColor: BUTTON_COLOR, color: BUTTON_TEXT_COLOR }}
+          disabled={isSubmitting}
+          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: BUTTON_COLOR || "#2563eb",
+            color: BUTTON_TEXT_COLOR || "white",
+          }}
         >
-          Simpan Pengaturan
+          {isSubmitting ? "Menyimpan..." : "Simpan Pengaturan"}
         </button>
       </div>
     </form>
