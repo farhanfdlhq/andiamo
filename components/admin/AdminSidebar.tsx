@@ -39,9 +39,9 @@ const AdminSidebar: React.FC = () => {
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
     `flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 group ${
       isActive
-        ? `text-white` // Teks putih untuk link aktif jika backgroundnya PRIMARY_COLOR
-        : `text-gray-300 hover:text-white hover:bg-opacity-20 hover:bg-white` // Efek hover
-    } ${isActive ? "font-semibold" : "font-normal"}`;
+        ? "text-black bg-yellow-400 font-semibold"
+        : "text-gray-300 hover:text-yellow-400 hover:bg-black hover:font-semibold"
+    }`;
 
   const activeStyle = {
     backgroundColor: PRIMARY_COLOR || "#2563eb", // Fallback jika PRIMARY_COLOR undefined
