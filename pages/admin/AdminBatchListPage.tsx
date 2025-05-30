@@ -1,28 +1,80 @@
 // Andiamo/pages/admin/AdminBatchListPage.tsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Batch } from "../../types";
-import LoadingSpinner from "../../components/LoadingSpinner";
-import ToastNotification from "../../components/ToastNotification";
+import { Batch, Region } from "../../types"; // Pastikan path ini benar
+import LoadingSpinner from "../../components/LoadingSpinner"; // Pastikan path ini benar
+import ToastNotification from "../../components/ToastNotification"; // Pastikan path ini benar
 import {
   BUTTON_COLOR,
   BUTTON_TEXT_COLOR,
   PRIMARY_COLOR,
-} from "../../constants";
-// Impor ikon jika Anda akan menggunakannya (contoh)
-// import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline'; // Contoh menggunakan Heroicons
+  REGION_LABELS, // Import REGION_LABELS
+} from "../../constants"; // Pastikan path ini benar
+import { useAuth } from "../../hooks/useAuth";
 
+// Simple SVG Icons for actions (seperti pada kode referensi)
+const EditIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="w-5 h-5"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+    />
+  </svg>
+);
+const DeleteIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="w-5 h-5"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.56 0c1.153 0 2.242.078 3.223.224M5 5a48.068 48.068 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+    />
+  </svg>
+);
+const InfoIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="w-16 h-16 mx-auto text-gray-400 mb-4"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+    />
+  </svg>
+);
+
+// Mempertahankan tipe SortableBatchColumns Anda sebelumnya
 type SortableBatchColumns =
   | "name"
   | "region"
   | "status"
   | "departure_date"
-  | "arrival_date";
+  | "arrival_date"; // Memastikan arrival_date tetap ada jika bisa disortir
+
 type SortDirection = "asc" | "desc";
 
 const AdminBatchListPage: React.FC = () => {
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string>("");
   const [toastType, setToastType] = useState<"success" | "error" | "info">(
@@ -31,43 +83,48 @@ const AdminBatchListPage: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const { token } = useAuth();
+
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  const backendStorageUrl = import.meta.env.VITE_BACKEND_STORAGE_URL; // Pastikan ini ada di .env
+  const backendStorageUrl = import.meta.env.VITE_BACKEND_STORAGE_URL; // Diperlukan lagi untuk "Gambar Utama"
 
   const queryParams = useMemo(
     () => new URLSearchParams(location.search),
     [location.search]
   );
+
   const [statusFilter, setStatusFilter] = useState<string>(
     queryParams.get("status") || "all"
   );
   const [sortBy, setSortBy] = useState<SortableBatchColumns | null>(
-    (queryParams.get("sortBy") as SortableBatchColumns) || "departure_date"
-  ); // Default sort
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    (queryParams.get("sortDir") as SortDirection) || "desc"
-  ); // Default direction
+    queryParams.get("sortBy") as SortableBatchColumns | null
+  );
+  const [sortDirection, setSortDirection] = useState<SortDirection | null>(
+    queryParams.get("sortDir") as SortDirection | null
+  );
 
   const fetchAdminBatches = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-
     const params = new URLSearchParams();
-    if (statusFilter !== "all") params.append("status", statusFilter);
-    if (sortBy) params.append("sortBy", sortBy);
-    if (sortBy && sortDirection) params.append("sortDir", sortDirection);
-
-    // Update URL tanpa reload halaman (hanya state history)
-    // Ini akan memperbarui URL di browser saat filter/sort berubah
-    navigate(`${location.pathname}?${params.toString()}`, {
+    if (statusFilter !== "all") {
+      params.append("status", statusFilter);
+    }
+    if (sortBy) {
+      params.append("sortBy", sortBy);
+      if (sortDirection) {
+        params.append("sortDir", sortDirection);
+      }
+    }
+    const queryString = params.toString();
+    navigate(`${location.pathname}${queryString ? `?${queryString}` : ""}`, {
       replace: true,
       state: location.state,
     });
-
     try {
       const response = await fetch(
-        `${apiBaseUrl}/batches?${params.toString()}`
-      ); // Panggil API dengan parameter
+        `${apiBaseUrl}/batches${queryString ? `?${queryString}` : ""}`
+      );
       if (!response.ok) {
         const errorData = await response
           .json()
@@ -77,6 +134,7 @@ const AdminBatchListPage: React.FC = () => {
         );
       }
       let data: Batch[] = await response.json();
+      // Parsing image_urls diperlukan lagi untuk kolom "Gambar Utama"
       data = data.map((batch) => {
         let parsedImageUrls: string[] = [];
         if (typeof batch.image_urls === "string") {
@@ -115,7 +173,8 @@ const AdminBatchListPage: React.FC = () => {
     sortDirection,
     navigate,
     location.pathname,
-  ]); // location.pathname ditambahkan agar URL update
+    location.state,
+  ]);
 
   useEffect(() => {
     if (apiBaseUrl) {
@@ -125,60 +184,93 @@ const AdminBatchListPage: React.FC = () => {
       setIsLoading(false);
     }
     if (location.state?.refresh) {
-      // Bersihkan state setelah refresh agar tidak refresh terus menerus jika user kembali ke halaman ini
       const { refresh, ...restState } = location.state;
       navigate(location.pathname + location.search, {
         state: restState,
         replace: true,
       });
     }
-  }, [apiBaseUrl, fetchAdminBatches, location.state]); // fetchAdminBatches dan location.state ditambahkan
+  }, [
+    apiBaseUrl,
+    fetchAdminBatches,
+    location.state,
+    location.pathname,
+    location.search,
+  ]);
 
   const handleSort = (column: SortableBatchColumns) => {
-    const direction: SortDirection =
-      sortBy === column && sortDirection === "asc" ? "desc" : "asc";
+    let newDirection: SortDirection;
+    if (sortBy === column) {
+      newDirection = sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      newDirection = "asc";
+    }
     setSortBy(column);
-    setSortDirection(direction);
-    // fetchAdminBatches akan dipanggil oleh useEffect karena sortBy/sortDirection berubah dan memicu update URL
+    setSortDirection(newDirection);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus batch ini?")) return;
-    setToastMessage("");
-    // const token = localStorage.getItem('authToken'); // Untuk otentikasi nanti
-    try {
-      const response = await fetch(`${apiBaseUrl}/batches/${id}`, {
-        method: "DELETE" /* headers: { 'Authorization': `Bearer ${token}` } */,
-      });
-      if (!response.ok) {
-        /* ... error handling ... */ throw new Error("Gagal hapus");
+  const handleDeleteBatch = async (batchId: number) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus batch ini?")) {
+      if (!token) {
+        setToastMessage("Otentikasi diperlukan untuk menghapus.");
+        setToastType("error");
+        return;
       }
-      setToastMessage("Batch berhasil dihapus.");
-      setToastType("success");
-      fetchAdminBatches();
-    } catch (err) {
-      /* ... error handling ... */
+      try {
+        const response = await fetch(`${apiBaseUrl}/batches/${batchId}`, {
+          method: "DELETE",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({
+              message: `Gagal menghapus batch. Status: ${response.status}`,
+            }));
+          throw new Error(
+            errorData.message ||
+              `Gagal menghapus batch. Status: ${response.status}`
+          );
+        }
+        setToastMessage("Batch berhasil dihapus.");
+        setToastType("success");
+        setBatches((prevBatches) =>
+          prevBatches.filter((b) => b.id !== batchId)
+        );
+      } catch (err) {
+        const errMsg =
+          err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan saat menghapus.";
+        setToastMessage(errMsg);
+        setToastType("error");
+      }
     }
   };
 
   const headerClass =
-    "px-6 py-4 text-left text-xs font-medium text-black uppercase tracking-wider cursor-pointer";
+    "px-6 py-3 text-left text-xs font-bold text-black uppercase tracking-wider cursor-pointer";
 
-  if (isLoading)
+  if (isLoading && batches.length === 0) {
     return (
       <div className="flex justify-center items-center h-screen">
         <LoadingSpinner />
       </div>
     );
-  if (error)
+  }
+  if (error) {
     return (
       <div className="container mx-auto p-4 text-red-600 text-center">
         Error: {error}
       </div>
     );
+  }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="container mx-auto p-4 sm:p-6 lg:p-8 font-inter">
       {toastMessage && (
         <ToastNotification
           message={toastMessage}
@@ -186,9 +278,9 @@ const AdminBatchListPage: React.FC = () => {
           onClose={() => setToastMessage("")}
         />
       )}
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-          Manajemen Batch
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+        <h1 className="font-poppins text-3xl font-bold text-black">
+          Kelola Batch Orders
         </h1>
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <select
@@ -203,26 +295,36 @@ const AdminBatchListPage: React.FC = () => {
           </select>
           <Link
             to="/admin/batches/new"
-            className="font-inter inline-block px-6 py-2.5 text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors duration-300 text-center whitespace-nowrap w-full sm:w-auto"
-            style={{
-              backgroundColor: BUTTON_COLOR || "#1e40af",
-              color: BUTTON_TEXT_COLOR || "white",
-            }}
+            className="font-inter inline-flex items-center px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors duration-300 whitespace-nowrap w-full sm:w-auto"
+            style={{ backgroundColor: BUTTON_COLOR, color: BUTTON_TEXT_COLOR }}
           >
-            Tambah Batch Baru
+            + Tambah Batch Baru
           </Link>
         </div>
       </div>
 
-      {batches.length === 0 && !isLoading ? (
-        <p className="text-center text-gray-500 py-10">
-          Belum ada batch yang ditambahkan.
-        </p>
+      {isLoading && batches.length > 0 && (
+        <div className="py-4 flex justify-center">
+          <LoadingSpinner />
+        </div>
+      )}
+
+      {!isLoading && batches.length === 0 ? (
+        <div className="text-center py-12 bg-white p-8 rounded-lg shadow">
+          <InfoIcon />
+          <p className="font-inter text-xl text-gray-600">
+            Belum ada batch yang dibuat atau sesuai filter.
+          </p>
+          <p className="font-inter text-sm text-gray-500 mt-2">
+            Klik tombol "+ Tambah Batch Baru" untuk memulai.
+          </p>
+        </div>
       ) : (
-        <div className="overflow-x-auto bg-white shadow-md rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead style={{ backgroundColor: PRIMARY_COLOR || "#fbbf24" }}>
+        <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 font-inter">
+            <thead style={{ backgroundColor: PRIMARY_COLOR }}>
               <tr>
+                {/* MEMPERTAHANKAN NAMA KOLOM ASLI ANDA */}
                 <th
                   scope="col"
                   className="px-6 py-4 text-left text-xs font-medium text-black uppercase tracking-wider"
@@ -235,7 +337,7 @@ const AdminBatchListPage: React.FC = () => {
                     { key: "region", label: "Region" },
                     { key: "status", label: "Status" },
                     { key: "departure_date", label: "Tgl Berangkat" },
-                    { key: "arrival_date", label: "Tgl Tiba" },
+                    { key: "arrival_date", label: "Tgl Tiba" }, // Mempertahankan Tgl Tiba
                   ] as { key: SortableBatchColumns; label: string }[]
                 ).map((col) => (
                   <th
@@ -245,7 +347,7 @@ const AdminBatchListPage: React.FC = () => {
                     onClick={() => handleSort(col.key)}
                   >
                     {col.label}
-                    {sortBy === col.key ? (
+                    {sortBy === col.key && sortDirection ? (
                       sortDirection === "asc" ? (
                         " ▲"
                       ) : (
@@ -258,7 +360,7 @@ const AdminBatchListPage: React.FC = () => {
                 ))}
                 <th
                   scope="col"
-                  className="px-6 py-4 text-right text-xs font-medium text-black uppercase tracking-wider"
+                  className="px-6 py-4 text-left text-xs font-medium text-black uppercase tracking-wider"
                 >
                   Aksi
                 </th>
@@ -268,8 +370,9 @@ const AdminBatchListPage: React.FC = () => {
               {batches.map((batch) => (
                 <tr
                   key={batch.id}
-                  className="hover:bg-gray-50 transition-colors"
+                  className="hover:bg-yellow-50 transition-colors duration-150"
                 >
+                  {/* MEMPERTAHANKAN KOLOM GAMBAR UTAMA */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <img
                       src={
@@ -288,18 +391,30 @@ const AdminBatchListPage: React.FC = () => {
                       }}
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {batch.name}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {/* Menggunakan gaya dari referensi untuk judul */}
+                    <div
+                      className="text-sm font-medium text-gray-900 truncate max-w-xs"
+                      title={batch.name}
+                    >
+                      {batch.name}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {batch.region || "-"}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-700">
+                      {batch.region && REGION_LABELS[batch.region as Region]
+                        ? REGION_LABELS[batch.region as Region]
+                        : batch.region || "-"}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         batch.status === "active"
                           ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+                          : batch.status === "closed"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-800"
                       }`}
                     >
                       {batch.status === "active"
@@ -317,6 +432,7 @@ const AdminBatchListPage: React.FC = () => {
                         )
                       : "-"}
                   </td>
+                  {/* MEMPERTAHANKAN KOLOM TGL TIBA */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {batch.arrival_date
                       ? new Date(batch.arrival_date).toLocaleDateString(
@@ -325,45 +441,20 @@ const AdminBatchListPage: React.FC = () => {
                         )
                       : "-"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                     <Link
                       to={`/admin/batches/edit/${batch.id}`}
+                      className="text-indigo-600 hover:text-indigo-900 inline-flex items-center"
                       title="Edit"
-                      className="text-indigo-600 hover:text-indigo-800"
                     >
-                      {/* Ganti dengan SVG Icon Edit */}
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 inline-block"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                        <path
-                          fillRule="evenodd"
-                          d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <EditIcon /> <span className="sr-only">Edit</span>
                     </Link>
                     <button
-                      onClick={() => handleDelete(batch.id)}
+                      onClick={() => handleDeleteBatch(batch.id)}
+                      className="text-red-600 hover:text-red-900 inline-flex items-center"
                       title="Hapus"
-                      className="text-red-600 hover:text-red-800"
                     >
-                      {/* Ganti dengan SVG Icon Delete */}
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 inline-block"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <DeleteIcon /> <span className="sr-only">Hapus</span>
                     </button>
                   </td>
                 </tr>
@@ -375,4 +466,5 @@ const AdminBatchListPage: React.FC = () => {
     </div>
   );
 };
+
 export default AdminBatchListPage;

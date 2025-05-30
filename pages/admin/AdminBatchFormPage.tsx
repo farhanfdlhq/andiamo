@@ -5,6 +5,7 @@ import BatchForm from "../../components/admin/BatchForm";
 import { Batch } from "../../types";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import ToastNotification from "../../components/ToastNotification";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AdminBatchFormPageProps {
   mode: "create" | "edit";
@@ -18,7 +19,7 @@ const AdminBatchFormPage: React.FC<AdminBatchFormPageProps> = ({ mode }) => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
+  const { token } = useAuth();
   const [toastMessage, setToastMessage] = useState<string>("");
   const [toastType, setToastType] = useState<"success" | "error" | "info">(
     "info"
@@ -72,7 +73,10 @@ const AdminBatchFormPage: React.FC<AdminBatchFormPageProps> = ({ mode }) => {
       const response = await fetch(url, {
         method: "POST",
         body: formData,
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
       const responseData = await response.json();
       if (!response.ok) {

@@ -1,38 +1,42 @@
 // Andiamo/components/admin/AdminSidebar.tsx
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; // Pastikan path benar
-import {
-  APP_NAME,
-  SECONDARY_COLOR, // Warna latar sidebar
-  PRIMARY_COLOR, // Warna aksen
-  // BUTTON_TEXT_COLOR, // Mungkin tidak terpakai langsung di sini
-} from "../../constants"; // Pastikan path benar
+import { useAuth } from "../../hooks/useAuth";
+import { APP_NAME, SECONDARY_COLOR, PRIMARY_COLOR } from "../../constants";
 
-// Anda bisa menggunakan ikon SVG asli jika ada, atau biarkan emoji untuk sementara
-const DashboardIcon = () => (
-  <span className="mr-3 w-5 h-5 inline-block text-center">📊</span>
+const Icon = ({ children }: { children: React.ReactNode }) => (
+  <span className="mr-3 w-5 h-5 inline-block text-center">{children}</span>
 );
-const BatchIcon = () => (
-  <span className="mr-3 w-5 h-5 inline-block text-center">📦</span>
-);
-const SettingsIcon = () => (
-  <span className="mr-3 w-5 h-5 inline-block text-center">⚙️</span>
-);
-const ProfileIcon = () => (
-  <span className="mr-3 w-5 h-5 inline-block text-center">👤</span>
-); // Tambahkan ikon profil
-const LogoutIcon = () => (
-  <span className="mr-3 w-5 h-5 inline-block text-center">🚪</span>
-);
+
+const navItems = [
+  {
+    to: "/admin/dashboard",
+    label: "Dashboard",
+    icon: <Icon>📊</Icon>,
+  },
+  {
+    to: "/admin/batches",
+    label: "Kelola Batch",
+    icon: <Icon>📦</Icon>,
+  },
+  {
+    to: "/admin/settings",
+    label: "Pengaturan",
+    icon: <Icon>⚙️</Icon>,
+  },
+  {
+    to: "/admin/profile",
+    label: "Edit Profil",
+    icon: <Icon>👤</Icon>,
+  },
+];
 
 const AdminSidebar: React.FC = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    // Jadikan async jika logout di AuthContext async
-    await logout(); // Tunggu proses logout selesai
+    await logout();
     navigate("/admin/login");
   };
 
@@ -40,27 +44,25 @@ const AdminSidebar: React.FC = () => {
     `flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 group ${
       isActive
         ? "text-black bg-yellow-400 font-semibold"
-        : "text-gray-300 hover:text-yellow-400 hover:bg-black hover:font-semibold"
+        : "text-white hover:text-yellow-400 hover:bg-black hover:font-semibold"
     }`;
 
   const activeStyle = {
-    backgroundColor: PRIMARY_COLOR || "#2563eb", // Fallback jika PRIMARY_COLOR undefined
+    backgroundColor: PRIMARY_COLOR || "#2563eb",
   };
 
   return (
     <div
-      className="w-64 h-full flex flex-col shadow-lg" // h-full akan merujuk ke h-screen dari parent
-      style={{ backgroundColor: SECONDARY_COLOR || "#1f2937" }} // Fallback jika SECONDARY_COLOR undefined
+      className="w-64 h-full flex flex-col shadow-lg"
+      style={{ backgroundColor: SECONDARY_COLOR || "#1f2937" }}
     >
       <div
-        className="px-6 py-5 flex items-center" // Tinggi header sidebar bisa disesuaikan di sini
-        style={{ borderBottom: `1px solid rgba(255,255,255,0.1)` }} // Garis bawah yang lebih soft
+        className="px-6 py-5 flex items-center"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
       >
-        {/* Anda bisa menambahkan LogoIcon di sini jika ada */}
-        {/* <LogoIcon className="h-8 w-auto mr-2" style={{ fill: PRIMARY_COLOR }} /> */}
         <h1
           className="font-poppins text-xl font-bold"
-          style={{ color: PRIMARY_COLOR || "#eff6ff" }} // Warna teks logo
+          style={{ color: PRIMARY_COLOR || "#eff6ff" }}
         >
           {APP_NAME}
         </h1>
@@ -69,52 +71,32 @@ const AdminSidebar: React.FC = () => {
           style={{
             backgroundColor: PRIMARY_COLOR || "#2563eb",
             color: SECONDARY_COLOR || "#eff6ff",
-          }} // Kontras warna
+          }}
         >
           ADMIN
         </span>
       </div>
       <nav className="flex-grow p-4 space-y-1.5">
-        {" "}
-        {/* Kurangi space-y jika terlalu renggang */}
-        <NavLink
-          to="/admin/dashboard"
-          className={navLinkClasses}
-          style={({ isActive }) => (isActive ? activeStyle : {})}
-        >
-          <DashboardIcon /> Dashboard
-        </NavLink>
-        <NavLink
-          to="/admin/batches"
-          className={navLinkClasses}
-          style={({ isActive }) => (isActive ? activeStyle : {})}
-        >
-          <BatchIcon /> Kelola Batch
-        </NavLink>
-        <NavLink
-          to="/admin/settings"
-          className={navLinkClasses}
-          style={({ isActive }) => (isActive ? activeStyle : {})}
-        >
-          <SettingsIcon /> Pengaturan
-        </NavLink>
-        <NavLink
-          to="/admin/profile"
-          className={navLinkClasses} // Gunakan fungsi className yang konsisten
-          style={({ isActive }) => (isActive ? activeStyle : {})} // Terapkan activeStyle
-        >
-          <ProfileIcon /> Edit Profil
-        </NavLink>
+        {navItems.map(({ to, label, icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={navLinkClasses}
+            style={({ isActive }) => (isActive ? activeStyle : {})}
+          >
+            {icon} {label}
+          </NavLink>
+        ))}
       </nav>
       <div
-        className="p-4 mt-auto" // mt-auto akan mendorong ini ke bawah
-        style={{ borderTop: `1px solid rgba(255,255,255,0.1)` }} // Garis atas yang lebih soft
+        className="p-4 mt-auto"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}
       >
         <button
           onClick={handleLogout}
           className="w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 group text-gray-300 hover:bg-red-600 hover:text-white"
         >
-          <LogoutIcon /> Logout
+          <Icon>🚪</Icon> Logout
         </button>
       </div>
     </div>
