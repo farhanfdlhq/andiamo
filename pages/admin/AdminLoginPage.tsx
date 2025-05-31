@@ -1,93 +1,114 @@
-// Andiamo/pages/admin/AdminLoginPage.tsx
 import React, { useState, useEffect, FormEvent } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; // Pastikan path ini benar
-import { User } from "../../types"; // Pastikan path ini benar
+import { useAuth } from "../../hooks/useAuth"; //
+import { User } from "../../types"; //
 import {
   APP_NAME,
   PRIMARY_COLOR,
   BUTTON_COLOR,
   BUTTON_TEXT_COLOR,
   TEXT_COLOR,
-} from "../../constants"; // Pastikan path ini benar
-// import LogoIcon from "../../components/icons/LogoIcon"; // Jika Anda ingin menggunakannya
+} from "../../constants"; //
+
+// Helper function untuk membaca cookie
+function getCookie(name: string): string | null {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for(let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+  }
+  return null;
+}
 
 const AdminLoginPage: React.FC = () => {
-  const [email, setEmail] = useState(""); // Sekarang akan digunakan untuk auth
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false); // Tambahkan state untuk loading
-  const auth = useAuth(); // Menggunakan hook useAuth yang sudah kita buat
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [email, setEmail] = useState(""); //
+  const [password, setPassword] = useState(""); //
+  const [error, setError] = useState(""); //
+  const [isSubmitting, setIsSubmitting] = useState(false); //
+  const auth = useAuth(); //
+  const navigate = useNavigate(); //
+  const location = useLocation(); //
 
-  const from = location.state?.from?.pathname || "/admin/dashboard";
+  const from = location.state?.from?.pathname || "/admin/dashboard"; //
 
   useEffect(() => {
-    if (auth.isAuthenticated) {
-      navigate(from, { replace: true });
+    if (auth.isAuthenticated) { //
+      navigate(from, { replace: true }); //
     }
-  }, [auth.isAuthenticated, navigate, from]);
+  }, [auth.isAuthenticated, navigate, from]); //
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setIsSubmitting(true);
+    e.preventDefault(); //
+    setError(""); //
+    setIsSubmitting(true); //
 
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-    if (!apiBaseUrl) {
-      setError("Konfigurasi API tidak ditemukan.");
-      setIsSubmitting(false);
-      return;
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL; //
+    if (!apiBaseUrl) { //
+      setError("Konfigurasi API tidak ditemukan."); //
+      setIsSubmitting(false); //
+      return; //
     }
 
+    const xsrfToken = getCookie('XSRF-TOKEN'); // Ambil nilai cookie XSRF-TOKEN
+
     try {
-      const response = await fetch(`${apiBaseUrl}/admin/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ email, password }), // Kirim email dan password yang diinput
+      const headers: HeadersInit = {
+        "Content-Type": "application/json", //
+        "Accept": "application/json", //
+      };
+
+      if (xsrfToken) {
+        headers['X-XSRF-TOKEN'] = xsrfToken;
+        console.log("Frontend: XSRF Token found in cookie and added to headers:", xsrfToken);
+      } else {
+        console.warn("Frontend: XSRF-TOKEN cookie not found. Proceeding without X-XSRF-TOKEN header.");
+      }
+
+      const response = await fetch(`${apiBaseUrl}/admin/login`, { //
+        method: "POST", //
+        headers: headers,
+        body: JSON.stringify({ email, password }), //
+        credentials: 'include', //
       });
 
-      const data = await response.json();
+      const data = await response.json(); //
 
-      if (!response.ok) {
-        let errorMessage =
-          data.message || `Login gagal. Status: ${response.status}`;
-        if (data.errors) {
-          const validationErrors = Object.values(data.errors).flat().join(" ");
-          errorMessage += ` Detail: ${validationErrors}`;
+      if (!response.ok) { //
+        let errorMessage = data.message || `Login gagal. Status: ${response.status}`; //
+        if (response.status === 419) { //
+          errorMessage = "Sesi login mungkin telah berakhir atau ada masalah validasi (CSRF). Silakan coba muat ulang halaman dan login lagi. Pastikan cookie XSRF-TOKEN ada dan header X-XSRF-TOKEN terkirim."; //
+        } else if (data.errors) { //
+          const validationErrors = Object.values(data.errors).flat().join(" "); //
+          errorMessage += ` Detail: ${validationErrors}`; //
         }
-        throw new Error(errorMessage);
+        throw new Error(errorMessage); //
       }
 
-      // Login sukses
-      if (data.token && data.user) {
-        auth.login(data.token, data.user as User); // Panggil fungsi login dari AuthContext
-        navigate(from, { replace: true });
-      } else {
-        throw new Error("Respon login tidak valid dari server.");
+      if (data.token && data.user) { //
+        await auth.login(data.token, data.user as User); //
+        navigate(from, { replace: true }); //
+      } else { //
+        throw new Error("Respon login tidak valid dari server."); //
       }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Terjadi kesalahan saat login."
+    } catch (err) { //
+      setError( //
+        err instanceof Error ? err.message : "Terjadi kesalahan saat login." //
       );
-    } finally {
-      setIsSubmitting(false);
+    } finally { //
+      setIsSubmitting(false); //
     }
   };
 
   return (
+    // ... sisa JSX tidak berubah ...
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
       <div className="mb-8">
         <div
           style={{ backgroundColor: PRIMARY_COLOR }}
           className="p-3 rounded-lg inline-block"
         >
-          {/* Jika Anda memiliki LogoIcon, Anda bisa menampilkannya di sini juga */}
-          {/* <LogoIcon className="h-8 w-auto inline-block mr-2" /> */}
           <h1 className="font-poppins text-4xl font-bold text-black">
             {APP_NAME}
           </h1>
@@ -109,7 +130,7 @@ const AdminLoginPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
-              htmlFor="email" // 'email' sekarang adalah input email sebenarnya
+              htmlFor="email"
               className="block text-sm font-medium text-gray-700 font-inter"
             >
               Alamat Email
@@ -117,10 +138,10 @@ const AdminLoginPage: React.FC = () => {
             <input
               type="email"
               id="email"
-              name="email" // Tambahkan atribut name
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required // Email wajib diisi
+              required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm font-inter"
               placeholder="admin@example.com"
               style={{
@@ -139,7 +160,7 @@ const AdminLoginPage: React.FC = () => {
             <input
               type="password"
               id="password"
-              name="password" // Tambahkan atribut name
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -154,7 +175,7 @@ const AdminLoginPage: React.FC = () => {
           <div className="space-y-4">
             <button
               type="submit"
-              disabled={isSubmitting} // Disable tombol saat submitting
+              disabled={isSubmitting}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium transition-colors duration-300 font-inter disabled:opacity-70"
               style={{
                 backgroundColor: BUTTON_COLOR,
@@ -183,11 +204,6 @@ const AdminLoginPage: React.FC = () => {
           </div>
         </form>
       </div>
-      {/* Hapus pesan demo hardcoded password */}
-      {/* <p className="mt-6 text-xs text-gray-500 font-inter">
-        Gunakan password `admin123` untuk login (demo).
-      </p> 
-      */}
     </div>
   );
 };

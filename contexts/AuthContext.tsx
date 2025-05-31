@@ -5,7 +5,7 @@ import React, {
   ReactNode,
   useCallback,
 } from "react";
-import { User, AuthContextType, AdminSettings } from "../types";
+import { User, AdminSettings } from "../types"; // Ambil AuthContextType dari sini jika sesuai
 import { getItem, removeItem, setItem } from "../utils/localStorage";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -13,16 +13,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_TOKEN_KEY = "authToken";
 const USER_DATA_KEY = "userData";
 
+// Definisikan AuthContextType di sini agar konsisten dengan implementasi
 export interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (token: string, userData: User) => void;
+  login: (token: string, userData: User) => Promise<void>; // Jadikan async
   logout: () => Promise<void>;
   isLoading: boolean;
   settings: AdminSettings | null;
-  fetchSettings: () => Promise<void>;
+  fetchSettings: (authToken?: string) => Promise<void>; // Terima token opsional
 }
+
+// Ambil BASE URL backend TANPA /api untuk CSRF cookie endpoint
+const backendRootUrl = import.meta.env.VITE_API_BASE_URL?.replace("/api", "");
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -34,47 +38,77 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-  const fetchSettings = useCallback(async () => {
-    if (apiBaseUrl && token) {
+  const fetchCsrfCookie = useCallback(async () => {
+    if (!backendRootUrl) {
+      console.error("Backend root URL for CSRF cookie is not configured.");
+      return;
+    }
+    try {
+      console.log("Attempting to fetch CSRF cookie from:", `${backendRootUrl}/sanctum/csrf-cookie`);
+      await fetch(`${backendRootUrl}/sanctum/csrf-cookie`, {
+        credentials: 'include', // Sangat penting!
+      });
+      console.log("CSRF cookie request sent successfully (expected 204).");
+    } catch (error) {
+      console.error("Error fetching CSRF cookie:", error);
+    }
+  }, []);
+
+  const fetchSettingsInternal = useCallback(async (currentAuthToken: string | null) => {
+    if (apiBaseUrl && currentAuthToken) {
       try {
         const response = await fetch(`${apiBaseUrl}/admin/settings`, {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${currentAuthToken}`,
             Accept: "application/json",
           },
+          credentials: 'include', // Penting untuk request yang butuh otentikasi cookie/session
         });
         if (response.ok) {
           const data = await response.json();
           setSettings(data);
+          console.log("Admin settings fetched successfully.");
+        } else {
+           console.error("Failed to fetch admin settings, status:", response.status);
         }
       } catch (error) {
-        console.error("Failed to fetch settings", error);
+        console.error("Error fetching admin settings:", error);
       }
+    } else if (!currentAuthToken) {
+        // console.log("Cannot fetch settings: No token provided.");
     }
-  }, [apiBaseUrl, token]);
+  }, [apiBaseUrl]);
 
   useEffect(() => {
-    const storedToken = getItem<string>(AUTH_TOKEN_KEY);
-    const storedUser = getItem<User>(USER_DATA_KEY);
+    const initializeAuth = async () => {
+      await fetchCsrfCookie(); // PENTING: Panggil fetchCsrfCookie di sini
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(storedUser);
-      setIsAuthenticated(true);
-      console.log("AuthContext: Token & user loaded from localStorage");
-    } else {
-      console.log("AuthContext: No token/user in localStorage or parse failed");
-    }
-    setIsLoading(false);
-    fetchSettings();
-  }, [fetchSettings]);
+      const storedToken = getItem<string>(AUTH_TOKEN_KEY);
+      const storedUser = getItem<User>(USER_DATA_KEY);
 
-  const login = (newToken: string, userData: User) => {
+      if (storedToken && storedUser) {
+        setToken(storedToken);
+        setUser(storedUser);
+        setIsAuthenticated(true);
+        console.log("AuthContext: Token & user loaded from localStorage");
+        await fetchSettingsInternal(storedToken); // Panggil fetchSettings setelah token di-load
+      } else {
+        console.log("AuthContext: No token/user in localStorage or parse failed");
+      }
+      setIsLoading(false);
+    };
+
+    initializeAuth();
+  }, [fetchCsrfCookie, fetchSettingsInternal]);
+
+  const login = async (newToken: string, userData: User) => {
     setItem(AUTH_TOKEN_KEY, newToken);
     setItem(USER_DATA_KEY, userData);
     setToken(newToken);
     setUser(userData);
     setIsAuthenticated(true);
+    await fetchSettingsInternal(newToken); // Ambil settings setelah login dengan token baru
+    console.log("User logged in, token and user data set in AuthContext.");
   };
 
   const logout = async () => {
@@ -86,7 +120,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
+          credentials: 'include', // Penting jika logout memerlukan session/cookie
         });
+        console.log("Logout API call successful.");
       } catch (error) {
         console.error("Error calling logout API:", error);
       }
@@ -98,6 +134,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setUser(null);
     setIsAuthenticated(false);
     setSettings(null);
+    console.log("User logged out, local storage cleared from AuthContext.");
+    // Opsional: Ambil token CSRF baru untuk form login berikutnya
+    // await fetchCsrfCookie();
   };
 
   return (
@@ -110,7 +149,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         logout,
         isLoading,
         settings,
-        fetchSettings,
+        fetchSettings: () => fetchSettingsInternal(token), // Sediakan fungsi fetchSettings ke consumer
       }}
     >
       {children}

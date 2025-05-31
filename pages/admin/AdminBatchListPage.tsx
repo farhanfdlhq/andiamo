@@ -12,6 +12,14 @@ import {
 } from "../../constants"; // Pastikan path ini benar
 import { useAuth } from "../../hooks/useAuth";
 
+// Fungsi untuk mendapatkan nilai cookie berdasarkan nama
+const getCookie = (name: string): string | null => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
+  return null;
+};
+
 // Simple SVG Icons for actions (seperti pada kode referensi)
 const EditIcon = () => (
   <svg
@@ -83,9 +91,9 @@ const AdminBatchListPage: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token } = useAuth(); // Pastikan ini sudah ada
 
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL; // Pastikan ini sudah ada
   const backendStorageUrl = import.meta.env.VITE_BACKEND_STORAGE_URL; // Diperlukan lagi untuk "Gambar Utama"
 
   const queryParams = useMemo(
@@ -196,6 +204,7 @@ const AdminBatchListPage: React.FC = () => {
     location.state,
     location.pathname,
     location.search,
+    navigate, // Menambahkan navigate ke dependency array karena digunakan di dalam useEffect
   ]);
 
   const handleSort = (column: SortableBatchColumns) => {
@@ -216,20 +225,48 @@ const AdminBatchListPage: React.FC = () => {
         setToastType("error");
         return;
       }
+
+      // 1. Ambil XSRF-TOKEN dari cookie
+      const xsrfToken = getCookie("XSRF-TOKEN");
+      if (!xsrfToken) {
+        setToastMessage("Gagal mendapatkan token CSRF. Coba refresh halaman.");
+        setToastType("error");
+        console.error("XSRF Token not found in cookies."); // DEBUG
+        return;
+      }
+      console.log("XSRF Token found:", xsrfToken); // DEBUG
+
       try {
         const response = await fetch(`${apiBaseUrl}/batches/${batchId}`, {
           method: "DELETE",
           headers: {
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
+            // 2. Tambahkan header X-XSRF-TOKEN
+            "X-XSRF-TOKEN": xsrfToken,
           },
+          // 3. Pastikan credentials 'include' digunakan (jika cookies dikelola lintas domain/subdomain)
+          // Untuk same-origin requests, fetch sudah otomatis mengirim cookies.
+          // Jika backend dan frontend di domain yang berbeda, pastikan CORS di backend mengizinkan credentials.
+          // Untuk Laravel Sanctum dengan SPA di domain yang sama, ini biasanya tidak perlu eksplisit.
+          // Namun, untuk memastikan, bisa ditambahkan jika ada masalah.
+          credentials: 'include',
         });
+
         if (!response.ok) {
           const errorData = await response
             .json()
             .catch(() => ({
               message: `Gagal menghapus batch. Status: ${response.status}`,
             }));
+          // Tambahkan logging untuk status response jika 419 (CSRF Mismatch)
+          if (response.status === 419) {
+            console.error("CSRF Token Mismatch (419). Token yang dikirim:", xsrfToken); // DEBUG
+            throw new Error(
+              errorData.message ||
+                `Gagal menghapus batch (CSRF Token Mismatch). Coba refresh halaman.`
+            );
+          }
           throw new Error(
             errorData.message ||
               `Gagal menghapus batch. Status: ${response.status}`
@@ -247,6 +284,7 @@ const AdminBatchListPage: React.FC = () => {
             : "Terjadi kesalahan saat menghapus.";
         setToastMessage(errMsg);
         setToastType("error");
+        console.error("Error during delete:", err); // DEBUG
       }
     }
   };
