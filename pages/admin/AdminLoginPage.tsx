@@ -1,108 +1,92 @@
-import React, { useState, useEffect, FormEvent } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; //
-import { User } from "../../types"; //
+import { useAuth } from "../../hooks/useAuth"; 
+import { User } from "../../types";
 import {
   APP_NAME,
   PRIMARY_COLOR,
   BUTTON_COLOR,
   BUTTON_TEXT_COLOR,
   TEXT_COLOR,
-} from "../../constants"; //
-
-// Helper function untuk membaca cookie
-function getCookie(name: string): string | null {
-  const nameEQ = name + "=";
-  const ca = document.cookie.split(';');
-  for(let i = 0; i < ca.length; i++) {
-    let c = ca[i];
-    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-    if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
-  }
-  return null;
-}
+} from "../../constants";
+import apiClient from '../../src/api/axios'; 
+import axios from 'axios';
 
 const AdminLoginPage: React.FC = () => {
-  const [email, setEmail] = useState(""); //
-  const [password, setPassword] = useState(""); //
-  const [error, setError] = useState(""); //
-  const [isSubmitting, setIsSubmitting] = useState(false); //
-  const auth = useAuth(); //
-  const navigate = useNavigate(); //
-  const location = useLocation(); //
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const from = location.state?.from?.pathname || "/admin/dashboard"; //
+  const from = location.state?.from?.pathname || "/admin/dashboard";
 
   useEffect(() => {
-    if (auth.isAuthenticated) { //
-      navigate(from, { replace: true }); //
+    if (auth.isAuthenticated) {
+      navigate(from, { replace: true });
     }
-  }, [auth.isAuthenticated, navigate, from]); //
+  }, [auth.isAuthenticated, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); //
-    setError(""); //
-    setIsSubmitting(true); //
+  e.preventDefault();
+  setError("");
+  setIsSubmitting(true);
 
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL; //
-    if (!apiBaseUrl) { //
-      setError("Konfigurasi API tidak ditemukan."); //
-      setIsSubmitting(false); //
-      return; //
-    }
+  const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '');
 
-    const xsrfToken = getCookie('XSRF-TOKEN'); // Ambil nilai cookie XSRF-TOKEN
+  try {
+    // 1. Meminta Cookie CSRF (ini tetap sama)
+    await axios.get(`${backendUrl}/sanctum/csrf-cookie`, { withCredentials: true });
+    console.log("Frontend: CSRF cookie request sent.");
 
-    try {
-      const headers: HeadersInit = {
-        "Content-Type": "application/json", //
-        "Accept": "application/json", //
-      };
-
-      if (xsrfToken) {
-        headers['X-XSRF-TOKEN'] = xsrfToken;
-        console.log("Frontend: XSRF Token found in cookie and added to headers:", xsrfToken);
-      } else {
-        console.warn("Frontend: XSRF-TOKEN cookie not found. Proceeding without X-XSRF-TOKEN header.");
-      }
-
-      const response = await fetch(`${apiBaseUrl}/admin/login`, { //
-        method: "POST", //
-        headers: headers,
-        body: JSON.stringify({ email, password }), //
-        credentials: 'include', //
-      });
-
-      const data = await response.json(); //
-
-      if (!response.ok) { //
-        let errorMessage = data.message || `Login gagal. Status: ${response.status}`; //
-        if (response.status === 419) { //
-          errorMessage = "Sesi login mungkin telah berakhir atau ada masalah validasi (CSRF). Silakan coba muat ulang halaman dan login lagi. Pastikan cookie XSRF-TOKEN ada dan header X-XSRF-TOKEN terkirim."; //
-        } else if (data.errors) { //
-          const validationErrors = Object.values(data.errors).flat().join(" "); //
-          errorMessage += ` Detail: ${validationErrors}`; //
+    // ==================== PERUBAHAN KUNCI DI SINI ====================
+    // Kita memanggil endpoint /login, BUKAN /api/admin/login.
+    // Kita menggunakan axios langsung agar tidak terkena prefix /api dari apiClient.
+    const response = await axios.post(`${backendUrl}/login`, 
+      { email, password },
+      { 
+        withCredentials: true,
+        headers: {
+          'Accept': 'application/json' // Penting agar Fortify merespons dengan JSON
         }
-        throw new Error(errorMessage); //
       }
-
-      if (data.token && data.user) { //
-        await auth.login(data.token, data.user as User); //
-        navigate(from, { replace: true }); //
-      } else { //
-        throw new Error("Respon login tidak valid dari server."); //
-      }
-    } catch (err) { //
-      setError( //
-        err instanceof Error ? err.message : "Terjadi kesalahan saat login." //
-      );
-    } finally { //
-      setIsSubmitting(false); //
+    );
+    // ================================================================
+    
+    // Jika login berhasil (status 200), ambil data user dan lanjutkan
+    if (response.status === 200) {
+      // Kita perlu mengambil data user dari endpoint lain setelah login
+      // apiClient di sini sudah benar karena /user ada di bawah prefix /api
+      const userResponse = await apiClient.get('/user');
+      await auth.login(null, userResponse.data); // Login tanpa token
+      navigate(from, { replace: true });
+    } else {
+      throw new Error("Login gagal dengan status tak terduga.");
     }
-  };
+
+  } catch (err: any) {
+    console.error("Login error:", err);
+    const responseData = err.response?.data;
+    let errorMessage = "Terjadi kesalahan saat login.";
+    
+    if (err.response?.status === 422 && responseData.errors) {
+      // Fortify mengembalikan error validasi
+      const validationErrors = Object.values(responseData.errors).flat().join(" ");
+      errorMessage = validationErrors;
+    } else {
+      // Untuk error login lainnya (401, 404, dll)
+      errorMessage = "Email atau password yang Anda masukkan salah.";
+    }
+    
+    setError(errorMessage);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
-    // ... sisa JSX tidak berubah ...
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
       <div className="mb-8">
         <div
@@ -144,10 +128,6 @@ const AdminLoginPage: React.FC = () => {
               required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm font-inter"
               placeholder="admin@example.com"
-              style={{
-                borderColor: error ? "rgb(239 68 68)" : PRIMARY_COLOR,
-                ringColor: error ? "rgb(239 68 68)" : PRIMARY_COLOR,
-              }}
             />
           </div>
           <div>
@@ -166,10 +146,6 @@ const AdminLoginPage: React.FC = () => {
               required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm font-inter"
               placeholder="••••••••"
-              style={{
-                borderColor: error ? "rgb(239 68 68)" : PRIMARY_COLOR,
-                ringColor: error ? "rgb(239 68 68)" : PRIMARY_COLOR,
-              }}
             />
           </div>
           <div className="space-y-4">
@@ -184,23 +160,6 @@ const AdminLoginPage: React.FC = () => {
             >
               {isSubmitting ? "Memproses..." : "Login"}
             </button>
-            <Link
-              to="/"
-              className="w-full flex justify-center py-3 px-4 border rounded-md shadow-sm text-sm font-medium transition-colors duration-300 font-inter"
-              style={{
-                borderColor: TEXT_COLOR,
-                color: TEXT_COLOR,
-                backgroundColor: "white",
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = "#f0f0f0";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = "white";
-              }}
-            >
-              Kembali ke Beranda
-            </Link>
           </div>
         </form>
       </div>
