@@ -1,4 +1,4 @@
-// Andiamo/pages/admin/AdminProfilePage.tsx
+// farhanfdlhq/andiamo/andiamo-fd98185f31cea406843a54513c763dd912491ed9/pages/admin/AdminProfilePage.tsx
 import React, { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import ToastNotification from "../../components/ToastNotification";
@@ -9,7 +9,7 @@ import {
 } from "../../constants";
 
 const AdminProfilePage: React.FC = () => {
-  const { user, token } = useAuth(); // Asumsi useAuth menyediakan data user yang login
+  const { isAuthenticated } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
@@ -37,29 +37,31 @@ const AdminProfilePage: React.FC = () => {
       return;
     }
 
-    if (!apiBaseUrl || !token) {
-      setSubmitError("Tidak dapat terhubung ke server atau sesi tidak valid.");
-      setToastMessage("Tidak dapat terhubung ke server atau sesi tidak valid.");
+    if (!isAuthenticated) {
+      setSubmitError("Sesi tidak valid. Silakan login kembali.");
+      setToastMessage("Sesi tidak valid. Silakan login kembali.");
       setToastType("error");
       setIsSubmitting(false);
       return;
     }
 
     try {
+      // Endpoint belum dibuat di backend PHP Native, asumsikan akan ada di /api/profile.php
       const response = await fetch(
-        `${apiBaseUrl}/admin/profile/change-password`,
+        `${apiBaseUrl}/profile.php?action=change-password`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             current_password: currentPassword,
             new_password: newPassword,
             new_password_confirmation: newPasswordConfirmation,
           }),
+          // Wajib untuk mengirim cookie sesi
+          credentials: "include",
         }
       );
 
@@ -80,7 +82,6 @@ const AdminProfilePage: React.FC = () => {
 
       setToastMessage(responseData.message || "Password berhasil diubah!");
       setToastType("success");
-      // Kosongkan field password setelah berhasil
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirmation("");
@@ -112,7 +113,6 @@ const AdminProfilePage: React.FC = () => {
         Edit Profil & Ganti Password
       </h1>
 
-      {/* Form Ganti Password */}
       <div className="mt-8 max-w-xl">
         <h2 className="text-xl font-semibold text-gray-700 mb-4">
           Ganti Password
@@ -159,7 +159,7 @@ const AdminProfilePage: React.FC = () => {
               }}
             />
             <p className="mt-1 text-xs text-gray-500 font-inter">
-              Minimal 8 karakter dan kombinasi angka
+              Minimal 8 karakter.
             </p>
           </div>
           <div>

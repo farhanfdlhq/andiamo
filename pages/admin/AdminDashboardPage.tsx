@@ -1,4 +1,5 @@
-// Andiamo/pages/admin/AdminDashboardPage.tsx
+// /andiamo/pages/admin/AdminDashboardPage.tsx
+
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import LoadingSpinner from "../../components/LoadingSpinner";
@@ -13,7 +14,7 @@ import {
 interface DashboardSummary {
   totalBatches: number;
   activeBatches: number;
-  closedBatches: number; // Pastikan backend mengirimkan field ini
+  closedBatches: number;
 }
 
 const AdminDashboardPage: React.FC = () => {
@@ -21,7 +22,11 @@ const AdminDashboardPage: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [errorData, setErrorData] = useState<string | null>(null);
 
-  const { token, isLoading: authIsLoading, logout: authLogout } = useAuth();
+  const {
+    isAuthenticated,
+    isLoading: authIsLoading,
+    logout: authLogout,
+  } = useAuth();
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
@@ -29,37 +34,32 @@ const AdminDashboardPage: React.FC = () => {
       setIsLoadingData(true);
       return;
     }
-    if (!token) {
+    if (!isAuthenticated) {
       setErrorData("Sesi tidak valid. Silakan login kembali.");
       setIsLoadingData(false);
       return;
     }
-    if (apiBaseUrl && token && !authIsLoading) {
+
+    if (apiBaseUrl && isAuthenticated && !authIsLoading) {
       const fetchSummary = async () => {
         setIsLoadingData(true);
         setErrorData(null);
         try {
-          const response = await fetch(
-            `${apiBaseUrl}/admin/dashboard-summary`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                Accept: "application/json",
-              },
-            }
-          );
+          const response = await fetch(`${apiBaseUrl}/dashboard.php`, {
+            headers: { Accept: "application/json" },
+            credentials: "include",
+          });
+
           if (!response.ok) {
             if (response.status === 401) {
               authLogout();
               throw new Error(
-                `Sesi Anda sudah berakhir atau tidak valid. Silakan login kembali.`
+                "Sesi Anda sudah berakhir atau tidak valid. Silakan login kembali."
               );
             }
-            const errorResponseData = await response
-              .json()
-              .catch(() => ({
-                message: `Gagal mengambil data summary: Status ${response.status}`,
-              }));
+            const errorResponseData = await response.json().catch(() => ({
+              message: `Gagal mengambil data summary: Status ${response.status}`,
+            }));
             throw new Error(
               errorResponseData.message ||
                 `Gagal mengambil data summary: Status ${response.status}`
@@ -82,7 +82,7 @@ const AdminDashboardPage: React.FC = () => {
       setErrorData("Konfigurasi API URL tidak ditemukan.");
       setIsLoadingData(false);
     }
-  }, [apiBaseUrl, token, authIsLoading, authLogout]);
+  }, [apiBaseUrl, isAuthenticated, authIsLoading, authLogout]);
 
   if (authIsLoading || isLoadingData) {
     return (
@@ -102,7 +102,7 @@ const AdminDashboardPage: React.FC = () => {
 
   const totalBatchesToDisplay = summary?.totalBatches ?? 0;
   const activeBatchesToDisplay = summary?.activeBatches ?? 0;
-  const closedBatchesToDisplay = summary?.closedBatches ?? 0; // Ambil data batch ditutup
+  const closedBatchesToDisplay = summary?.closedBatches ?? 0;
 
   return (
     <div>
@@ -110,7 +110,6 @@ const AdminDashboardPage: React.FC = () => {
         <h1 className="font-poppins text-3xl font-bold text-black">
           Admin Dashboard
         </h1>
-        {/* Tombol Aksi Cepat dipindahkan ke sini */}
         <Link
           to="/admin/batches/new"
           className="font-inter inline-block px-6 py-3 text-sm font-semibold rounded-lg transition-colors duration-300 text-center shadow-md hover:shadow-lg whitespace-nowrap"
@@ -151,8 +150,6 @@ const AdminDashboardPage: React.FC = () => {
             className="font-inter text-4xl font-bold mt-2"
             style={{ color: "#16a34a" }}
           >
-            {" "}
-            {/* Warna hijau untuk aktif */}
             {activeBatchesToDisplay}
           </p>
           <Link
@@ -164,7 +161,6 @@ const AdminDashboardPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* Card Batch Ditutup (Baru) */}
         <div className="bg-white p-6 rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300">
           <h3 className="font-poppins text-xl font-semibold text-gray-800">
             Batch Ditutup
@@ -173,8 +169,6 @@ const AdminDashboardPage: React.FC = () => {
             className="font-inter text-4xl font-bold mt-2"
             style={{ color: "#ef4444" }}
           >
-            {" "}
-            {/* Warna merah untuk ditutup */}
             {closedBatchesToDisplay}
           </p>
           <Link

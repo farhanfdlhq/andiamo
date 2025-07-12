@@ -1,3 +1,4 @@
+// farhanfdlhq/andiamo/andiamo-fd98185f31cea406843a54513c763dd912491ed9/pages/HomePage.tsx
 import React, { useState, useEffect } from "react";
 import HeroSection from "../components/HeroSection";
 import RegionFilter from "../components/RegionFilter";
@@ -35,24 +36,14 @@ const HomePage: React.FC = () => {
           throw new Error(errorMessage);
         }
         let data: Batch[] = await response.json();
-        data = data.map((b) => {
-          let parsedImageUrls = [];
-          if (typeof b.image_urls === "string") {
-            try {
-              parsedImageUrls = JSON.parse(b.image_urls);
-            } catch (e) {
-              parsedImageUrls = b.image_urls ? [b.image_urls] : [];
-            }
-          } else if (Array.isArray(b.image_urls)) {
-            parsedImageUrls = b.image_urls;
-          }
-          return {
-            ...b,
-            image_urls: parsedImageUrls.filter(
-              (url) => typeof url === "string" && url.trim() !== ""
-            ),
-          };
-        });
+        data = data.map((b) => ({
+          ...b,
+          image_urls: Array.isArray(b.image_urls)
+            ? b.image_urls.filter(
+                (url) => typeof url === "string" && url.trim() !== ""
+              )
+            : [],
+        }));
         setBatches(data);
       } catch (err) {
         if (err instanceof Error) {

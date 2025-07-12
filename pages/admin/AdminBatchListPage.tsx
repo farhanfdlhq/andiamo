@@ -1,26 +1,18 @@
-// Andiamo/pages/admin/AdminBatchListPage.tsx
+// farhanfdlhq/andiamo/andiamo-fd98185f31cea406843a54513c763dd912491ed9/pages/admin/AdminBatchListPage.tsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Batch, Region } from "../../types"; // Pastikan path ini benar
-import LoadingSpinner from "../../components/LoadingSpinner"; // Pastikan path ini benar
-import ToastNotification from "../../components/ToastNotification"; // Pastikan path ini benar
+import { Batch, Region } from "../../types";
+import LoadingSpinner from "../../components/LoadingSpinner";
+import ToastNotification from "../../components/ToastNotification";
 import {
   BUTTON_COLOR,
   BUTTON_TEXT_COLOR,
   PRIMARY_COLOR,
-  REGION_LABELS, // Import REGION_LABELS
-} from "../../constants"; // Pastikan path ini benar
+  REGION_LABELS,
+} from "../../constants";
 import { useAuth } from "../../hooks/useAuth";
 
-// Fungsi untuk mendapatkan nilai cookie berdasarkan nama
-const getCookie = (name: string): string | null => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
-  return null;
-};
-
-// Simple SVG Icons for actions (seperti pada kode referensi)
+// Simple SVG Icons
 const EditIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -70,14 +62,12 @@ const InfoIcon = () => (
   </svg>
 );
 
-// Mempertahankan tipe SortableBatchColumns Anda sebelumnya
 type SortableBatchColumns =
   | "name"
   | "region"
   | "status"
   | "departure_date"
-  | "arrival_date"; // Memastikan arrival_date tetap ada jika bisa disortir
-
+  | "arrival_date";
 type SortDirection = "asc" | "desc";
 
 const AdminBatchListPage: React.FC = () => {
@@ -91,10 +81,10 @@ const AdminBatchListPage: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { token } = useAuth(); // Pastikan ini sudah ada
+  const { isAuthenticated } = useAuth();
 
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL; // Pastikan ini sudah ada
-  const backendStorageUrl = import.meta.env.VITE_BACKEND_STORAGE_URL; // Diperlukan lagi untuk "Gambar Utama"
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const backendStorageUrl = import.meta.env.VITE_BACKEND_STORAGE_URL;
 
   const queryParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -115,24 +105,19 @@ const AdminBatchListPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     const params = new URLSearchParams();
-    if (statusFilter !== "all") {
-      params.append("status", statusFilter);
-    }
+    if (statusFilter !== "all") params.append("status", statusFilter);
     if (sortBy) {
       params.append("sortBy", sortBy);
-      if (sortDirection) {
-        params.append("sortDir", sortDirection);
-      }
+      if (sortDirection) params.append("sortDir", sortDirection);
     }
     const queryString = params.toString();
     navigate(`${location.pathname}${queryString ? `?${queryString}` : ""}`, {
       replace: true,
       state: location.state,
     });
+
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/batches${queryString ? `?${queryString}` : ""}`
-      );
+      const response = await fetch(`${apiBaseUrl}/batches?${queryString}`); // API GET tidak perlu otentikasi
       if (!response.ok) {
         const errorData = await response
           .json()
@@ -142,30 +127,14 @@ const AdminBatchListPage: React.FC = () => {
         );
       }
       let data: Batch[] = await response.json();
-      // Parsing image_urls diperlukan lagi untuk kolom "Gambar Utama"
-      data = data.map((batch) => {
-        let parsedImageUrls: string[] = [];
-        if (typeof batch.image_urls === "string") {
-          try {
-            parsedImageUrls = JSON.parse(batch.image_urls);
-          } catch (e) {
-            console.warn(
-              "Failed to parse image_urls for batch ID:",
-              batch.id,
-              batch.image_urls
-            );
-            parsedImageUrls = batch.image_urls ? [batch.image_urls] : [];
-          }
-        } else if (Array.isArray(batch.image_urls)) {
-          parsedImageUrls = batch.image_urls;
-        }
-        return {
-          ...batch,
-          image_urls: parsedImageUrls.filter(
-            (url) => typeof url === "string" && url.trim() !== ""
-          ),
-        };
-      });
+      data = data.map((batch) => ({
+        ...batch,
+        image_urls: Array.isArray(batch.image_urls)
+          ? batch.image_urls.filter(
+              (url) => typeof url === "string" && url.trim() !== ""
+            )
+          : [],
+      }));
       setBatches(data);
     } catch (err) {
       setError(
@@ -204,53 +173,29 @@ const AdminBatchListPage: React.FC = () => {
     location.state,
     location.pathname,
     location.search,
-    navigate, // Menambahkan navigate ke dependency array karena digunakan di dalam useEffect
+    navigate,
   ]);
 
   const handleSort = (column: SortableBatchColumns) => {
-    let newDirection: SortDirection;
-    if (sortBy === column) {
-      newDirection = sortDirection === "asc" ? "desc" : "asc";
-    } else {
-      newDirection = "asc";
-    }
+    const newDirection =
+      sortBy === column && sortDirection === "asc" ? "desc" : "asc";
     setSortBy(column);
     setSortDirection(newDirection);
   };
 
   const handleDeleteBatch = async (batchId: number) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus batch ini?")) {
-      if (!token) {
-        setToastMessage("Otentikasi diperlukan untuk menghapus.");
+      if (!isAuthenticated) {
+        setToastMessage("Sesi tidak valid. Silakan login kembali.");
         setToastType("error");
         return;
       }
-
-      // 1. Ambil XSRF-TOKEN dari cookie
-      const xsrfToken = getCookie("XSRF-TOKEN");
-      if (!xsrfToken) {
-        setToastMessage("Gagal mendapatkan token CSRF. Coba refresh halaman.");
-        setToastType("error");
-        console.error("XSRF Token not found in cookies."); // DEBUG
-        return;
-      }
-      console.log("XSRF Token found:", xsrfToken); // DEBUG
 
       try {
         const response = await fetch(`${apiBaseUrl}/batches/${batchId}`, {
           method: "DELETE",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-            // 2. Tambahkan header X-XSRF-TOKEN
-            "X-XSRF-TOKEN": xsrfToken,
-          },
-          // 3. Pastikan credentials 'include' digunakan (jika cookies dikelola lintas domain/subdomain)
-          // Untuk same-origin requests, fetch sudah otomatis mengirim cookies.
-          // Jika backend dan frontend di domain yang berbeda, pastikan CORS di backend mengizinkan credentials.
-          // Untuk Laravel Sanctum dengan SPA di domain yang sama, ini biasanya tidak perlu eksplisit.
-          // Namun, untuk memastikan, bisa ditambahkan jika ada masalah.
-          credentials: 'include',
+          headers: { Accept: "application/json" },
+          credentials: "include", // <-- PENTING untuk mengirim cookie sesi
         });
 
         if (!response.ok) {
@@ -259,14 +204,6 @@ const AdminBatchListPage: React.FC = () => {
             .catch(() => ({
               message: `Gagal menghapus batch. Status: ${response.status}`,
             }));
-          // Tambahkan logging untuk status response jika 419 (CSRF Mismatch)
-          if (response.status === 419) {
-            console.error("CSRF Token Mismatch (419). Token yang dikirim:", xsrfToken); // DEBUG
-            throw new Error(
-              errorData.message ||
-                `Gagal menghapus batch (CSRF Token Mismatch). Coba refresh halaman.`
-            );
-          }
           throw new Error(
             errorData.message ||
               `Gagal menghapus batch. Status: ${response.status}`
@@ -284,7 +221,6 @@ const AdminBatchListPage: React.FC = () => {
             : "Terjadi kesalahan saat menghapus.";
         setToastMessage(errMsg);
         setToastType("error");
-        console.error("Error during delete:", err); // DEBUG
       }
     }
   };
@@ -362,7 +298,6 @@ const AdminBatchListPage: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200 font-inter">
             <thead style={{ backgroundColor: PRIMARY_COLOR }}>
               <tr>
-                {/* MEMPERTAHANKAN NAMA KOLOM ASLI ANDA */}
                 <th
                   scope="col"
                   className="px-6 py-4 text-left text-xs font-medium text-black uppercase tracking-wider"
@@ -375,7 +310,7 @@ const AdminBatchListPage: React.FC = () => {
                     { key: "region", label: "Region" },
                     { key: "status", label: "Status" },
                     { key: "departure_date", label: "Tgl Berangkat" },
-                    { key: "arrival_date", label: "Tgl Tiba" }, // Mempertahankan Tgl Tiba
+                    { key: "arrival_date", label: "Tgl Tiba" },
                   ] as { key: SortableBatchColumns; label: string }[]
                 ).map((col) => (
                   <th
@@ -410,7 +345,6 @@ const AdminBatchListPage: React.FC = () => {
                   key={batch.id}
                   className="hover:bg-yellow-50 transition-colors duration-150"
                 >
-                  {/* MEMPERTAHANKAN KOLOM GAMBAR UTAMA */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <img
                       src={
@@ -430,7 +364,6 @@ const AdminBatchListPage: React.FC = () => {
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {/* Menggunakan gaya dari referensi untuk judul */}
                     <div
                       className="text-sm font-medium text-gray-900 truncate max-w-xs"
                       title={batch.name}
@@ -470,7 +403,6 @@ const AdminBatchListPage: React.FC = () => {
                         )
                       : "-"}
                   </td>
-                  {/* MEMPERTAHANKAN KOLOM TGL TIBA */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {batch.arrival_date
                       ? new Date(batch.arrival_date).toLocaleDateString(

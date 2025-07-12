@@ -1,16 +1,13 @@
+// farhanfdlhq/andiamo/andiamo-fd98185f31cea406843a54513c763dd912491ed9/pages/admin/AdminLoginPage.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; 
-import { User } from "../../types";
+import { useAuth } from "../../hooks/useAuth";
 import {
   APP_NAME,
   PRIMARY_COLOR,
   BUTTON_COLOR,
   BUTTON_TEXT_COLOR,
-  TEXT_COLOR,
 } from "../../constants";
-import apiClient from '../../src/api/axios'; 
-import axios from 'axios';
 
 const AdminLoginPage: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -30,61 +27,40 @@ const AdminLoginPage: React.FC = () => {
   }, [auth.isAuthenticated, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
-  setIsSubmitting(true);
+    e.preventDefault();
+    setError("");
+    setIsSubmitting(true);
 
-  const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '');
+    const backendApiUrl = import.meta.env.VITE_API_BASE_URL;
 
-  try {
-    // 1. Meminta Cookie CSRF (ini tetap sama)
-    await axios.get(`${backendUrl}/sanctum/csrf-cookie`, { withCredentials: true });
-    console.log("Frontend: CSRF cookie request sent.");
-
-    // ==================== PERUBAHAN KUNCI DI SINI ====================
-    // Kita memanggil endpoint /login, BUKAN /api/admin/login.
-    // Kita menggunakan axios langsung agar tidak terkena prefix /api dari apiClient.
-    const response = await axios.post(`${backendUrl}/login`, 
-      { email, password },
-      { 
-        withCredentials: true,
+    try {
+      // TIDAK ADA LAGI PANGGILAN KE /sanctum/csrf-cookie
+      // Langsung panggil endpoint login
+      const response = await fetch(`${backendApiUrl}/auth.php?action=login`, {
+        method: "POST",
         headers: {
-          'Accept': 'application/json' // Penting agar Fortify merespons dengan JSON
-        }
-      }
-    );
-    // ================================================================
-    
-    // Jika login berhasil (status 200), ambil data user dan lanjutkan
-    if (response.status === 200) {
-      // Kita perlu mengambil data user dari endpoint lain setelah login
-      // apiClient di sini sudah benar karena /user ada di bawah prefix /api
-      const userResponse = await apiClient.get('/user');
-      await auth.login(null, userResponse.data); // Login tanpa token
-      navigate(from, { replace: true });
-    } else {
-      throw new Error("Login gagal dengan status tak terduga.");
-    }
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: "include", // SANGAT PENTING untuk mengirim cookie sesi
+      });
 
-  } catch (err: any) {
-    console.error("Login error:", err);
-    const responseData = err.response?.data;
-    let errorMessage = "Terjadi kesalahan saat login.";
-    
-    if (err.response?.status === 422 && responseData.errors) {
-      // Fortify mengembalikan error validasi
-      const validationErrors = Object.values(responseData.errors).flat().join(" ");
-      errorMessage = validationErrors;
-    } else {
-      // Untuk error login lainnya (401, 404, dll)
-      errorMessage = "Email atau password yang Anda masukkan salah.";
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || "Email atau password salah.");
+      }
+
+      await auth.login(null, responseData); // Kirim null untuk token
+
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err.message || "Terjadi kesalahan saat login.");
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setError(errorMessage);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
