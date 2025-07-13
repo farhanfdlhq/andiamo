@@ -45,7 +45,8 @@ const AdminDashboardPage: React.FC = () => {
         setIsLoadingData(true);
         setErrorData(null);
         try {
-          const response = await fetch(`${apiBaseUrl}/dashboard.php`, {
+          // ===== PERBAIKAN URL DI BARIS INI =====
+          const response = await fetch(`${apiBaseUrl}/admin/dashboard-summary`, {
             headers: { Accept: "application/json" },
             credentials: "include",
           });

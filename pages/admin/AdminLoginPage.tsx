@@ -36,7 +36,7 @@ const AdminLoginPage: React.FC = () => {
     try {
       // TIDAK ADA LAGI PANGGILAN KE /sanctum/csrf-cookie
       // Langsung panggil endpoint login
-      const response = await fetch(`${backendApiUrl}/auth.php?action=login`, {
+    const response = await fetch(`${backendApiUrl}/auth?action=login`, { 
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -48,7 +48,7 @@ const AdminProfilePage: React.FC = () => {
     try {
       // Endpoint belum dibuat di backend PHP Native, asumsikan akan ada di /api/profile.php
       const response = await fetch(
-        `${apiBaseUrl}/profile.php?action=change-password`,
+        `${apiBaseUrl}/profile?action=change-password`,
         {
           method: "POST",
           headers: {
